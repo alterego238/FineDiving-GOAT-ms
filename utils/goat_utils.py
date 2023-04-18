@@ -1,8 +1,8 @@
 from typing import Union, Optional
 import os
 import csv
-import torch
-import torch.nn as nn
+import mindspore
+import mindspore.nn as nn
 import numpy as np
 import random
 from torch.utils.data import DataLoader, Dataset

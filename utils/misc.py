@@ -1,11 +1,13 @@
-import torch
+#import torch
+import mindspore as ms
+import mindspore.ops as ops
 import numpy as np
 import os
 from os.path import join
 from pydoc import locate
 import sys
-import torch.nn as nn
-import torch.nn.functional as F
+#import torch.nn as nn
+#import torch.nn.functional as F
 
 def import_class(name):
     return locate(name)
@@ -16,7 +18,7 @@ def worker_init_fn(worker_id):
 def fix_bn(m):
     classname = m.__class__.__name__
     if classname.find('BatchNorm') != -1:
-        m.eval()
+        m.set_train(False)
 
 def denormalize(label, label_range, upper = 100.0): 
     true_label = (label.float() / float(upper)) * (label_range[1] - label_range[0]) + label_range[0]
@@ -49,18 +51,36 @@ def cal_tiou(tIoU_results, tiou_thresholds):
     return tIoU_correct_per_thr
 
 def seg_pool_1d(video_fea_1, video_1_st, video_1_ed, fix_size):
-    video_fea_seg0 = F.interpolate(video_fea_1[:,:,:video_1_st], size=fix_size, mode='linear', align_corners=True)
-    video_fea_seg1 = F.interpolate(video_fea_1[:,:,video_1_st:video_1_ed], size=fix_size, mode='linear', align_corners=True)
-    video_fea_seg2 = F.interpolate(video_fea_1[:,:,video_1_ed:], size=fix_size, mode='linear', align_corners=True)
-    video_1_segs = torch.cat([video_fea_seg0, video_fea_seg1, video_fea_seg2], 2)
+    video_fea_seg0 = ops.interpolate(video_fea_1[:,:,:video_1_st], sizes=(fix_size,), mode='linear', coordinate_transformation_mode='align_corners')
+    video_fea_seg1 = ops.interpolate(video_fea_1[:,:,video_1_st:video_1_ed], sizes=(fix_size,), mode='linear', coordinate_transformation_mode='align_corners')
+    video_fea_seg2 = ops.interpolate(video_fea_1[:,:,video_1_ed:], sizes=(fix_size,), mode='linear', coordinate_transformation_mode='align_corners')
+    video_1_segs = ops.concat([video_fea_seg0, video_fea_seg1, video_fea_seg2], 2)
     return video_1_segs
 
 def seg_pool_3d(video_feamap_2, video_2_st, video_2_ed, fix_size):
-    N, C, T, H, W = video_feamap_2.size()
-    video_feamap_seg0 = F.interpolate(video_feamap_2[:, :, :video_2_st, :, :], size=[fix_size, H, W], mode='trilinear', align_corners=True)
-    video_feamap_seg1 = F.interpolate(video_feamap_2[:, :, video_2_st:video_2_ed, :, :], size=[fix_size, H, W], mode='trilinear', align_corners=True)
-    video_feamap_seg2 = F.interpolate(video_feamap_2[:, :, video_2_ed:, :, :], size=[fix_size, H, W], mode='trilinear', align_corners=True)
-    video_2_segs_map = torch.cat([video_feamap_seg0, video_feamap_seg1, video_feamap_seg2], 2)
+    N, C, T, H, W = video_feamap_2.shape
+    video_feamap_seg0 = ops.interpolate(video_feamap_2[:, :, :video_2_st, :, :].permute(0, 1, 3, 4, 2).reshape(N, C*H*W, -1), sizes=(fix_size,), mode='linear', 
+                                        coordinate_transformation_mode='align_corners').reshape(N, C, H, W, -1).permute(0, 1, 4, 2, 3).reshape(N, C, -1, H, W)
+    video_feamap_seg1 = ops.interpolate(video_feamap_2[:, :, video_2_st:video_2_ed, :, :].permute(0, 1, 3, 4, 2).reshape(N, C*H*W, -1), sizes=(fix_size,), mode='linear', 
+                                        coordinate_transformation_mode='align_corners').reshape(N, C, H, W, -1).permute(0, 1, 4, 2, 3).reshape(N, C, -1, H, W)
+    video_feamap_seg2 = ops.interpolate(video_feamap_2[:, :, video_2_ed:, :, :].permute(0, 1, 3, 4, 2).reshape(N, C*H*W, -1), sizes=(fix_size,), mode='linear', 
+                                        coordinate_transformation_mode='align_corners').reshape(N, C, H, W, -1).permute(0, 1, 4, 2, 3).reshape(N, C, -1, H, W)
+    video_2_segs_map = ops.concat([video_feamap_seg0, video_feamap_seg1, video_feamap_seg2], 2)
     return video_2_segs_map
 
 
+if __name__ == '__main__':
+    from mindspore.common.initializer import One, Normal
+    import argparse
+
+    video_fea_1 = ms.Tensor(shape=(1, 64, 96), dtype=ms.float32, init=Normal())
+    video_1_st = 20
+    video_1_ed = 50
+    video_1_segs = seg_pool_1d(video_fea_1, video_1_st, video_1_ed, 5)
+    print(f'video_1_segs.shape: {video_1_segs.shape}') # (1, 64, 15)
+
+    video_feamap_2 = ms.Tensor(shape=(1, 64, 96, 4, 4), dtype=ms.float32, init=Normal())
+    video_2_st = 20
+    video_2_ed = 50
+    video_2_segs_map = seg_pool_3d(video_feamap_2, video_2_st, video_2_ed, 5)
+    print(f'video_1_segs.shape: {video_2_segs_map.shape}') # (1, 64, 15, 4, 4)

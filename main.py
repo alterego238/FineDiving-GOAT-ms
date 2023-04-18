@@ -30,10 +30,11 @@ def main():
         raise NotImplementedError()
         args.distributed = True
 
-    setup_env(args.launcher, distributed=args.distributed)
+    #setup_env(args.launcher, distributed=args.distributed)
     init_seed(args)
 
     if args.test:
+        raise NotImplementedError()
         test_net(args)
     else:
         train_net(args)

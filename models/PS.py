@@ -30,5 +30,5 @@ if __name__ == '__main__':
     psnet_model = PSNet(n_channels=9) 
     com_feature_12_u = ms.Tensor(shape=(2, 9, 1024), dtype=ms.float32, init=Normal()) # (2B, 9, 1024)
     u_fea_96, transits_pred = psnet_model(com_feature_12_u)
-    print(f'u_fea_96.shape: {u_fea_96.shape}')
-    print(f'transits_pred.shape: {transits_pred.shape}')
+    print(f'u_fea_96.shape: {u_fea_96.shape}') # (2, 96, 64)
+    print(f'transits_pred.shape: {transits_pred.shape}') # (2, 96, 2)

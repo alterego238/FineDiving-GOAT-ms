@@ -3,9 +3,10 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 sys.path.append(os.path.join(BASE_DIR, "../"))
 
-import torch
-import torch.optim as optim
-from models import I3D_backbone
+import mindspore as ms
+import mindspore.nn as nn
+#import torch.optim as optim
+#from models import I3D_backbone
 from models.PS import PSNet
 from utils.misc import import_class
 #from torchvideotransforms import video_transforms, volume_transforms
@@ -33,9 +34,11 @@ def get_video_trans():
 
 def dataset_builder(args):
     train_trans, test_trans = get_video_trans()
-    Dataset = import_class("datasets." + args.benchmark)
-    train_dataset = Dataset(args, transform=train_trans, subset='train')
-    test_dataset = Dataset(args, transform=test_trans, subset='test')
+    DatasetGenerator = import_class("datasets." + args.benchmark)
+    train_dataset = DatasetGenerator(args, transform=train_trans, subset='train')
+    #train_dataset = GeneratorDataset(train_dataset_generator, ["data", "target"], num_parallel_workers=args.workers)
+    test_dataset = DatasetGenerator(args, transform=test_trans, subset='test')
+    #test_dataset = GeneratorDataset(test_dataset_generator, ["data", "target"], shuffle=False, num_workers=args.workers)
     return train_dataset, test_dataset
 
 def model_builder(args):
@@ -49,11 +52,11 @@ def model_builder(args):
 
 def build_opti_sche(base_model, psnet_model, decoder, regressor_delta, args):
     if args.optimizer == 'Adam':
-        optimizer = optim.Adam([
-            {'params': psnet_model.parameters()},
-            {'params': decoder.parameters()},
-            {'params': regressor_delta.parameters()}
-        ], lr=args.lr, weight_decay=args.weight_decay)
+        optimizer = nn.Adam([
+            {'params': psnet_model.trainable_params()},
+            {'params': decoder.trainable_params()},
+            {'params': regressor_delta.trainable_params()}
+        ], learning_rate=args.lr, weight_decay=args.weight_decay)
     else:
         raise NotImplementedError()
 
@@ -69,23 +72,23 @@ def resume_train(base_model, psnet_model, decoder, regressor_delta, optimizer, a
     print('Loading weights from %s...' % ckpt_path)
 
     # load state dict
-    state_dict = torch.load(ckpt_path, map_location='cpu')
+    state_dict = ms.load_checkpoint(ckpt_path, map_location='cpu')
 
     # parameter resume of base model
     base_ckpt = {k.replace("module.", ""): v for k, v in state_dict['base_model'].items()}
-    base_model.load_state_dict(base_ckpt)
+    ms.load_param_into_net(base_model, base_ckpt)
 
     psnet_ckpt = {k.replace("module.", ""): v for k, v in state_dict['psnet_model'].items()}
-    psnet_model.load_state_dict(psnet_ckpt)
+    ms.load_param_into_net(psnet_model, psnet_ckpt)
 
     decoder_ckpt = {k.replace("module.", ""): v for k, v in state_dict['decoder'].items()}
-    decoder.load_state_dict(decoder_ckpt)
+    ms.load_param_into_net(decoder, decoder_ckpt)
 
     regressor_delta_ckpt = {k.replace("module.", ""): v for k, v in state_dict['regressor_delta'].items()}
-    regressor_delta.load_state_dict(regressor_delta_ckpt)
+    ms.load_param_into_net(regressor_delta, regressor_delta_ckpt)
 
     # optimizer
-    optimizer.load_state_dict(state_dict['optimizer'])
+    ms.load_param_into_net(optimizer, state_dict['optimizer'])
 
     # parameter
     start_epoch = state_dict['epoch'] + 1
@@ -104,17 +107,17 @@ def load_model(base_model, psnet_model, decoder, regressor_delta, args):
     print('Loading weights from %s...' % ckpt_path)
 
     # load state dict
-    state_dict = torch.load(ckpt_path,map_location='cpu')
+    state_dict = ms.load_checkpoint(ckpt_path,map_location='cpu')
 
     # parameter resume of base model
     base_ckpt = {k.replace("module.", ""): v for k, v in state_dict['base_model'].items()}
-    base_model.load_state_dict(base_ckpt)
+    ms.load_param_into_net(base_model, base_ckpt)
     psnet_model_ckpt = {k.replace("module.", ""): v for k, v in state_dict['psnet_model'].items()}
-    psnet_model.load_state_dict(psnet_model_ckpt)
+    ms.load_param_into_net(psnet_model, psnet_model_ckpt)
     decoder_ckpt = {k.replace("module.", ""): v for k, v in state_dict['decoder'].items()}
-    decoder.load_state_dict(decoder_ckpt)
+    ms.load_param_into_net(decoder, decoder_ckpt)
     regressor_delta_ckpt = {k.replace("module.", ""): v for k, v in state_dict['regressor_delta'].items()}
-    regressor_delta.load_state_dict(regressor_delta_ckpt)
+    ms.load_param_into_net(regressor_delta, regressor_delta_ckpt)
 
     epoch_best_aqa = state_dict['epoch_best_aqa']
     rho_best = state_dict['rho_best']
