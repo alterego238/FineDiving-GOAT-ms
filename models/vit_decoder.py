@@ -47,14 +47,14 @@ class Mlp(nn.Cell):
         self.fc1 = nn.Dense(in_features, hidden_features)
         self.act = act_layer(approximate=False)
         self.fc2 = nn.Dense(hidden_features, out_features)
-        self.drop = nn.Dropout(drop) if drop != 0 else None
+        self.drop = nn.Dropout(p=drop)
 
     def construct(self, x):
         x = self.fc1(x)
         x = self.act(x)
-        x = self.drop(x) if not self.drop is None else x
+        x = self.drop(x)
         x = self.fc2(x)
-        x = self.drop(x) if not self.drop is None else x
+        x = self.drop(x)
         return x
 
 
@@ -66,10 +66,10 @@ class Attention(nn.Cell):
         self.scale = qk_scale or head_dim ** -0.5
 
         self.qkv = nn.Dense(dim, dim * 3, has_bias=qkv_bias)
-        self.attn_drop = nn.Dropout(attn_drop) if attn_drop != 0 else None
+        self.attn_drop = nn.Dropout(p=attn_drop)
 
         self.proj = nn.Dense(dim, dim)
-        self.proj_drop = nn.Dropout(proj_drop) if proj_drop != 0 else None
+        self.proj_drop = nn.Dropout(p=proj_drop)
 
     def construct(self, x):
         B, N, C = x.shape
@@ -78,12 +78,12 @@ class Attention(nn.Cell):
 
         attn = (q @ k.transpose(0, 1, 3, 2)) * self.scale  # B,num_heads,N,N
         attn = ops.softmax(attn, axis=-1)
-        attn = self.attn_drop(attn) if not self.attn_drop is None else attn
+        attn = self.attn_drop(attn)
         print((attn @ v).shape)
 
         x = (attn @ v).transpose(0, 2, 1, 3).reshape(B, N, C)  # B,N,C
         x = self.proj(x)
-        x = self.proj_drop(x) if not self.proj_drop is None else x
+        x = self.proj_drop(x)
         return x
 
 
@@ -99,10 +99,10 @@ class CrossAttention(nn.Cell):
         self.q_map = nn.Dense(dim, out_dim, has_bias=qkv_bias)
         self.k_map = nn.Dense(dim, out_dim, has_bias=qkv_bias)
         self.v_map = nn.Dense(dim, out_dim, has_bias=qkv_bias)
-        self.attn_drop = nn.Dropout(attn_drop) if attn_drop != 0 else None
+        self.attn_drop = nn.Dropout(p=attn_drop)
 
         self.proj = nn.Dense(out_dim, out_dim)
-        self.proj_drop = nn.Dropout(proj_drop) if proj_drop != 0 else None
+        self.proj_drop = nn.Dropout(p=proj_drop)
 
     def construct(self, q, v):
         B, N, _ = q.shape
@@ -116,10 +116,10 @@ class CrossAttention(nn.Cell):
 
         attn = (q @ k.transpose(0, 1, 3, 2)) * self.scale
         attn = ops.softmax(attn, axis=-1)
-        attn = self.attn_drop(attn) if not self.attn_drop is None else attn
+        attn = self.attn_drop(attn)
         x = (attn @ v).transpose(0, 2, 1, 3).reshape(B, N, C)
         x = self.proj(x)
-        x = self.proj_drop(x) if not self.proj_drop is None else x
+        x = self.proj_drop(x)
         return x
 
 

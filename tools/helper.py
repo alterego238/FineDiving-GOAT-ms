@@ -484,10 +484,10 @@ def save_checkpoint(base_model, psnet_model, decoder, regressor_delta, optimizer
                     epoch_best_aqa, rho_best, L2_min, RL2_min, prefix, args):
     ms.save_checkpoint(append_dict={
         # 'base_model': base_model.state_dict(),
-        'psnet_model': psnet_model.state_dict(),
-        'decoder': decoder.state_dict(),
-        'regressor_delta': regressor_delta.state_dict(),
-        'optimizer': optimizer.state_dict(),
+        'psnet_model': psnet_model.parameters_dict(),
+        'decoder': decoder.parameters_dict(),
+        'regressor_delta': regressor_delta.parameters_dict(),
+        'optimizer': optimizer.parameters_dict(),
         'epoch': epoch,
         'epoch_best_aqa': epoch_best_aqa,
         'rho_best': rho_best,

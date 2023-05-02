@@ -212,7 +212,7 @@ class FineDiving_Pair_Dataset:
             random_sample_list = random.sample(select_list_per_clip, num_selected_frames)
             selected_frames_list.extend([video[10 * i + j].unsqueeze(0) for j in random_sample_list])
             selected_frames_idx.extend([image_frame_idx[10 * i + j] for j in random_sample_list])
-        selected_frames = ops.concat(selected_frames_list, dim=0)  # 540*t,C,H,W; t=num_selected_frames
+        selected_frames = ops.concat(selected_frames_list, axis=0)  # 540*t,C,H,W; t=num_selected_frames
         return selected_frames, selected_frames_idx
 
     def random_select_idx(self, image_frame_idx):
@@ -252,7 +252,7 @@ class FineDiving_Pair_Dataset:
                 else:
                     selected_frames_idx = self.select_middle_idx(image_frame_idx)
                 bp_features_list = [bp_features_ori[i].unsqueeze(0) for i in selected_frames_idx]  # [1,768]
-                data['bp_features'] = ops.concat(bp_features_list, dim=0).to(ms.float32)  # 540,768
+                data['bp_features'] = ops.concat(bp_features_list, axis=0).to(ms.float32)  # 540,768
             elif self.args.use_self:
                 data = data
             else:
@@ -364,6 +364,7 @@ class FineDiving_Pair_Dataset:
     def __len__(self):
         return len(self.dataset)
 
+
 if __name__ == '__main__':
     import traceback
     from mindspore.dataset import GeneratorDataset
@@ -372,6 +373,7 @@ if __name__ == '__main__':
     from utils.misc import import_class
     
     def get_video_trans():
+        return None, None
         train_trans = transforms.Compose([
             transforms.VideoRandomHorizontalFlip(),
             transforms.VideoResize((112,112)),
@@ -422,21 +424,21 @@ if __name__ == '__main__':
     parser.add_argument('--num_selected_frames', type=int, help='number of selected frames per 16 frames', default=1)
 
     # path
-    parser.add_argument('--data_root', type=str, help='root of dataset', default='/mnt/petrelfs/daiwenxun/AS-AQA/Video_result')
-    parser.add_argument('--label_path', type=str, help='path of annotation file', default='/mnt/petrelfs/daiwenxun/AS-AQA/Exp/AS-AQA/Anno_result/anno_dict.pkl')
-    parser.add_argument('--boxes_path', type=str, help='path of boxes annotation file', default='/mnt/petrelfs/daiwenxun/AS-AQA/Exp/DINO/ob_result_new.pkl')
+    parser.add_argument('--data_root', type=str, help='root of dataset', default='/mnt/e/hjl/LOGO/file_for_logoVideo_result')
+    parser.add_argument('--label_path', type=str, help='path of annotation file', default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/Anno_result/anno_dict.pkl')
+    parser.add_argument('--boxes_path', type=str, help='path of boxes annotation file', default='/mnt/e/hjl/LOGO/file_for_logoExp/DINO/ob_result_new.pkl')
     # backbone features path
-    parser.add_argument('--i3d_feature_path', type=str, help='path of i3d feature dict', default='/mnt/petrelfs/daiwenxun/AS-AQA/Exp/AS-AQA/video_feature_dict.pkl')
-    parser.add_argument('--swin_feature_path', type=str, help='path of swin feature dict', default='/mnt/petrelfs/daiwenxun/AS-AQA/Exp/video-swin-features/swin_features_dict_new.pkl')
-    parser.add_argument('--bpbb_feature_path', type=str, help='path of bridge-prompt feature dict', default='/mnt/petrelfs/daiwenxun/AS-AQA/Exp/AS-AQA/bpbb_features_540.pkl')
+    parser.add_argument('--i3d_feature_path', type=str, help='path of i3d feature dict', default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/video_feature_dict_numpy.pkl')
+    parser.add_argument('--swin_feature_path', type=str, help='path of swin feature dict', default='/mnt/e/hjl/LOGO/file_for_logoExp/video-swin-features/swin_features_dict_new_numpy.pkl')
+    parser.add_argument('--bpbb_feature_path', type=str, help='path of bridge-prompt feature dict', default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/bpbb_features_540.pkl')
     # attention features path
-    parser.add_argument('--feamap_root', type=str, help='path of feature dict', default='/mnt/petrelfs/daiwenxun/AS-AQA/Exp/AS-AQA/video_feamap_dict.pkl')
-    parser.add_argument('--train_split', type=str, help='', default='/mnt/petrelfs/daiwenxun/AS-AQA/Exp/AS-AQA/Anno_result/train_split3.pkl')
-    parser.add_argument('--test_split', type=str, help='', default='/mnt/petrelfs/daiwenxun/AS-AQA/Exp/AS-AQA/Anno_result/test_split3.pkl')
-    parser.add_argument('--cnn_feature_path', type=str, help='path of cnn feature dict', default='/mnt/petrelfs/daiwenxun/AS-AQA/Exp/Inceptionv3/inception_feature_dict.pkl')
-    parser.add_argument('--stage1_model_path', type=str, default='/mnt/petrelfs/daiwenxun/AS-AQA/Exp/Group-AQA-Distributed/ckpts/STAGE1_256frames_rho0.3257707338254451_(224, 224)_(25, 25)_loss82.48323059082031.pth', help='stage1_model_path')
-    parser.add_argument('--bp_feature_path', type=str, default='/mnt/petrelfs/daiwenxun/AS-AQA/Exp/AS-AQA/bp_features', help='bridge prompt feature path')
-    parser.add_argument('--formation_feature_path', type=str, default='/mnt/petrelfs/daiwenxun/AS-AQA/Exp/AS-AQA/formation_features_middle_1.pkl', help='formation feature path')
+    parser.add_argument('--feamap_root', type=str, help='path of feature dict', default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/video_feamap_dict.pkl')
+    parser.add_argument('--train_split', type=str, help='', default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/Anno_result/train_split3.pkl')
+    parser.add_argument('--test_split', type=str, help='', default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/Anno_result/test_split3.pkl')
+    parser.add_argument('--cnn_feature_path', type=str, help='path of cnn feature dict', default='/mnt/e/hjl/LOGO/file_for_logoExp/Inceptionv3/inception_feature_dict.pkl')
+    parser.add_argument('--stage1_model_path', type=str, default='/mnt/e/hjl/LOGO/file_for_logoExp/Group-AQA-Distributed/ckpts/STAGE1_256frames_rho0.3257707338254451_(224, 224)_(25, 25)_loss82.48323059082031.pth', help='stage1_model_path')
+    parser.add_argument('--bp_feature_path', type=str, default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/bp_features', help='bridge prompt feature path')
+    parser.add_argument('--formation_feature_path', type=str, default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/formation_features_middle_1.pkl', help='formation feature path')
 
     # [BOOL]
     # bool for attention mode[GOAT / BP / FORMATION / SELF]

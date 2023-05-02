@@ -10,12 +10,13 @@ import mindspore.nn as nn
 from models.PS import PSNet
 from utils.misc import import_class
 #from torchvideotransforms import video_transforms, volume_transforms
-from msvideo.data import transforms
+#from msvideo.data import transforms
 from models import decoder_fuser
 from models import MLP_score
 
 
 def get_video_trans():
+    return None, None
     train_trans = transforms.Compose([
         transforms.VideoRandomHorizontalFlip(),
         transforms.VideoResize((112,112)),
