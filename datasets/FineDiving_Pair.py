@@ -6,7 +6,7 @@ import pickle
 import random
 import glob
 #from torchvideotransforms import video_transforms, volume_transforms
-from msvideo.data import transforms
+#from msvideo.data import transforms
 from os.path import join
 from PIL import Image
 
@@ -50,11 +50,11 @@ class FineDiving_Pair_Dataset:
         self.bp_feature_path = args.bp_feature_path
 
         # transforms
-        self.transforms = transforms.Compose([
+        '''self.transforms = transforms.Compose([
             transforms.VideoResize(self.img_size),
             transforms.VideoToTensor(),
             transforms.VideoNormalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
+        ])'''
 
         self.action_number_dict = {}
         self.difficulties_dict = {}
@@ -326,7 +326,8 @@ class FineDiving_Pair_Dataset:
             # goat
             target = self.load_goat_data(target, sample_2)
 
-            return data, target
+            return data['feature'], data['feamap'], data['transits'], data['number'], data['final_score'], data['difficulty'], data['completeness'], data['boxes'], data['cnn_features'
+                ], target['feature'], target['feamap'], target['transits'], target['number'], target['final_score'], target['difficulty'], target['completeness'], target['boxes'], target['cnn_features']
         else:
             # test phrase
             if self.action_number_choosing:
@@ -359,7 +360,20 @@ class FineDiving_Pair_Dataset:
                 tmp = self.load_goat_data(tmp, item)
 
                 target_list.append(tmp)
-            return data, target_list
+
+            target = {}
+            target['feature'] = np.array([item['feature'] for item in target_list])
+            target['feamap'] = np.array([item['feamap'] for item in target_list])
+            target['transits'] = np.array([item['transits'] for item in target_list])
+            target['number'] = np.array([item['number'] for item in target_list])
+            target['final_score'] = np.array([item['final_score'] for item in target_list])
+            target['difficulty'] = np.array([item['difficulty'] for item in target_list])
+            target['completeness'] = np.array([item['completeness'] for item in target_list])
+            target['boxes'] = np.array([item['boxes'] for item in target_list])
+            target['cnn_features'] = np.array([item['cnn_features'] for item in target_list])
+
+            return data['feature'], data['feamap'], data['transits'], data['number'], data['final_score'], data['difficulty'], data['completeness'], data['boxes'], data['cnn_features'
+                ], target['feature'], target['feamap'], target['transits'], target['number'], target['final_score'], target['difficulty'], target['completeness'], target['boxes'], target['cnn_features']
 
     def __len__(self):
         return len(self.dataset)
@@ -424,21 +438,21 @@ if __name__ == '__main__':
     parser.add_argument('--num_selected_frames', type=int, help='number of selected frames per 16 frames', default=1)
 
     # path
-    parser.add_argument('--data_root', type=str, help='root of dataset', default='/mnt/e/hjl/LOGO/file_for_logoVideo_result')
-    parser.add_argument('--label_path', type=str, help='path of annotation file', default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/Anno_result/anno_dict.pkl')
-    parser.add_argument('--boxes_path', type=str, help='path of boxes annotation file', default='/mnt/e/hjl/LOGO/file_for_logoExp/DINO/ob_result_new.pkl')
+    parser.add_argument('--data_root', type=str, help='root of dataset', default='/mnt/disk_1/jiale_intern/file_for_logo/Video_result')
+    parser.add_argument('--label_path', type=str, help='path of annotation file', default='/mnt/disk_1/jiale_intern/file_for_logo/anno_dict.pkl')
+    parser.add_argument('--boxes_path', type=str, help='path of boxes annotation file', default='/mnt/disk_1/jiale_intern/file_for_logo/ob_result_new.pkl')
     # backbone features path
-    parser.add_argument('--i3d_feature_path', type=str, help='path of i3d feature dict', default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/video_feature_dict_numpy.pkl')
-    parser.add_argument('--swin_feature_path', type=str, help='path of swin feature dict', default='/mnt/e/hjl/LOGO/file_for_logoExp/video-swin-features/swin_features_dict_new_numpy.pkl')
-    parser.add_argument('--bpbb_feature_path', type=str, help='path of bridge-prompt feature dict', default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/bpbb_features_540.pkl')
+    parser.add_argument('--i3d_feature_path', type=str, help='path of i3d feature dict', default='/mnt/disk_1/jiale_intern/file_for_logo/video_feature_dict_numpy.pkl')
+    parser.add_argument('--swin_feature_path', type=str, help='path of swin feature dict', default='/mnt/disk_1/jiale_intern/file_for_logo/swin_features_dict_new_numpy.pkl')
+    parser.add_argument('--bpbb_feature_path', type=str, help='path of bridge-prompt feature dict', default='/mnt/disk_1/jiale_intern/file_for_logo/bpbb_features_540.pkl')
     # attention features path
-    parser.add_argument('--feamap_root', type=str, help='path of feature dict', default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/video_feamap_dict.pkl')
-    parser.add_argument('--train_split', type=str, help='', default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/Anno_result/train_split3.pkl')
-    parser.add_argument('--test_split', type=str, help='', default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/Anno_result/test_split3.pkl')
-    parser.add_argument('--cnn_feature_path', type=str, help='path of cnn feature dict', default='/mnt/e/hjl/LOGO/file_for_logoExp/Inceptionv3/inception_feature_dict.pkl')
-    parser.add_argument('--stage1_model_path', type=str, default='/mnt/e/hjl/LOGO/file_for_logoExp/Group-AQA-Distributed/ckpts/STAGE1_256frames_rho0.3257707338254451_(224, 224)_(25, 25)_loss82.48323059082031.pth', help='stage1_model_path')
-    parser.add_argument('--bp_feature_path', type=str, default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/bp_features', help='bridge prompt feature path')
-    parser.add_argument('--formation_feature_path', type=str, default='/mnt/e/hjl/LOGO/file_for_logoExp/AS-AQA/formation_features_middle_1.pkl', help='formation feature path')
+    parser.add_argument('--feamap_root', type=str, help='path of feature dict', default='/mnt/disk_1/jiale_intern/file_for_logo/video_feamap_dict.pkl')
+    parser.add_argument('--train_split', type=str, help='', default='/mnt/disk_1/jiale_intern/file_for_logo/train_split3.pkl')
+    parser.add_argument('--test_split', type=str, help='', default='/mnt/disk_1/jiale_intern/file_for_logo/test_split3.pkl')
+    parser.add_argument('--cnn_feature_path', type=str, help='path of cnn feature dict', default='/mnt/disk_1/jiale_intern/file_for_logo/inception_feature_dict.pkl')
+    parser.add_argument('--stage1_model_path', type=str, default='/mnt/disk_1/jiale_intern/file_for_logo/STAGE1_256frames_rho0.3257707338254451_(224, 224)_(25, 25)_loss82.48323059082031.pth', help='stage1_model_path')
+    parser.add_argument('--bp_feature_path', type=str, default='/mnt/disk_1/jiale_intern/file_for_logoExp/AS-AQA/bp_features', help='bridge prompt feature path')
+    parser.add_argument('--formation_feature_path', type=str, default='/mnt/disk_1/jiale_intern/file_for_logo/formation_features_middle_1.pkl', help='formation feature path')
 
     # [BOOL]
     # bool for attention mode[GOAT / BP / FORMATION / SELF]
@@ -463,9 +477,59 @@ if __name__ == '__main__':
     from mindspore.dataset import GeneratorDataset
     train_dataset_generator, test_dataset_generator = dataset_builder(args)
 
-    test_dataset = GeneratorDataset(test_dataset_generator, ["data", "target"], shuffle=False, num_parallel_workers=args.workers)
+    print('-' * 5 + 'train' + '-' * 5)
+    train_dataset_generator[0]
+
+    train_dataset = GeneratorDataset(train_dataset_generator, ['data_feature', 'data_feamap', 'data_transits', 'data_number', 'data_final_score', 
+                                                               'data_difficulty', 'data_completeness', 'data_boxes', 'data_cnn_features', 
+                                                               'target_feature', 'target_feamap', 'target_transits', 'target_number', 'target_final_score', 
+                                                               'target_difficulty', 'target_completeness', 'target_boxes','target_cnn_features'], 
+                                                                shuffle=False, num_parallel_workers=args.workers)
+    train_dataset = train_dataset.batch(batch_size=args.bs_train)
+    train_dataloader = train_dataset.create_tuple_iterator()
+
+    data_get = next(iter(train_dataset.create_dict_iterator()))
+    for key, value in data_get.items():
+        print(key, value.shape)
+
+    '''data = {}
+    target = {}
+    data['feature'] = data_get['data_feature']
+    data['final_score'] = data_get['data_final_score']
+    data['difficulty'] = data_get['data_difficulty']
+    data['boxes'] = data_get['data_boxes']
+    data['cnn_features'] = data_get['data_cnn_features']
+    target['feature'] = data_get['target_feature']
+    target['final_score'] = data_get['target_final_score']
+    target['difficulty'] = data_get['target_difficulty']
+    target['boxes'] = data_get['target_boxes']
+    target['cnn_features'] = data_get['target_cnn_features']'''
+
+
+    print('-' * 5 + 'test' + '-' * 5)
+    test_dataset_generator[0]
+
+    test_dataset = GeneratorDataset(test_dataset_generator, ['data_feature', 'data_feamap', 'data_transits', 'data_number', 'data_final_score', 
+                                                               'data_difficulty', 'data_completeness', 'data_boxes', 'data_cnn_features', 
+                                                               'target_feature', 'target_feamap', 'target_transits', 'target_number', 'target_final_score', 
+                                                               'target_difficulty', 'target_completeness', 'target_boxes','target_cnn_features'], 
+                                                                shuffle=False, num_parallel_workers=args.workers)
     test_dataset = test_dataset.batch(batch_size=args.bs_test)
     test_dataloader = test_dataset.create_tuple_iterator()
-    data = next(test_dataset.create_dict_iterator())
-    print(data["data"].keys(), data["target"].keys())
-    print(next(test_dataloader))
+
+    data_get = next(iter(test_dataset.create_dict_iterator()))
+    for key, value in data_get.items():
+        print(key, value.shape)
+
+    '''data = {}
+    data['feature'] = data_get['data_feature']
+    data['final_score'] = data_get['data_final_score']
+    data['difficulty'] = data_get['data_difficulty']
+    data['boxes'] = data_get['data_boxes']
+    data['cnn_features'] = data_get['data_cnn_features']'''
+    target_len = data_get['target_final_score'].shape[1]
+    target = [{'feature': data_get['target_feature'][:, i, :, :], 'final_score': data_get['target_final_score'][:, i], 'difficulty': data_get['target_difficulty'][:, i],
+               'boxes': data_get['target_boxes'][:, i, :, :], 'cnn_features': data_get['target_cnn_features'][:, i, :, :]} for i in range(target_len)]
+    print(type(target), len(target))
+    '''for item in target:
+        print(item)'''

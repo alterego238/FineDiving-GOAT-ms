@@ -148,7 +148,8 @@ def network_forward_train(base_model, psnet_model, decoder, regressor_delta, pre
     start = time.time()
     #optimizer.zero_grad()
 
-    def forward_fn():
+    def forward_fn(pred_scores, feature_1, label_1_score, feature_2, label_2_score, label_1_tas, label_2_tas, 
+                   pred_tious_5, pred_tious_75, feamap_1, feamap_2, data, target):
         ############# I3D featrue #############
         N, T, C, T_t, H_t, W_t = (args.bs_train, 9, 1024, 2, 4, 4)
         N = feature_1.shape[0]
@@ -314,7 +315,8 @@ def network_forward_train(base_model, psnet_model, decoder, regressor_delta, pre
         return loss, delta, transits_pred, label_12_tas, transits_st_ed
     
     grad_fn = ms.value_and_grad(forward_fn, None, optimizer.parameters, has_aux=True)
-    (loss, delta, transits_pred, label_12_tas, transits_st_ed), grads = grad_fn()
+    (loss, delta, transits_pred, label_12_tas, transits_st_ed), grads = grad_fn(pred_scores, feature_1, label_1_score, feature_2, label_2_score, label_1_tas, label_2_tas, 
+                                                                                pred_tious_5, pred_tious_75, feamap_1, feamap_2, data, target)
 
     '''loss.backward()
     optimizer.step()'''
@@ -342,8 +344,8 @@ def network_forward_train(base_model, psnet_model, decoder, regressor_delta, pre
     if batch_idx % args.print_freq == 0:
         print('[Training][%d/%d][%d/%d] \t Batch_time: %.2f \t Batch_loss: %.4f \t '
               'lr1 : %0.5f \t lr2 : %0.5f'
-              % (epoch, args.max_epoch, batch_idx, batch_num, batch_time, loss.item(),
-                 optimizer.get_lr_parameter(psnet_model.trainable_params()), optimizer.get_lr_parameter(decoder.trainable_params())))
+              % (epoch, args.max_epoch, batch_idx, batch_num, batch_time, loss.asnumpy().item(),
+                 optimizer.get_lr()[0], optimizer.get_lr()[1]))
 
 
 def network_forward_test(base_model, psnet_model, decoder, regressor_delta, pred_scores,
@@ -471,7 +473,7 @@ def network_forward_test(base_model, psnet_model, decoder, regressor_delta, pred
             tIoU_results.append(segment_iou(np.array(label_12_tas.squeeze(-1))[bs],
                                             np.array(transits_st_ed.squeeze(-1))[bs], args))
 
-    pred_scores.extend([i.item() / len(feature_2_list) for i in score])
+    pred_scores.extend([i.asnumpy().item() / len(feature_2_list) for i in score])
 
     tIoU_results_mean = [sum(tIoU_results) / len(tIoU_results)]
     tiou_thresholds = np.array([0.5, 0.75])

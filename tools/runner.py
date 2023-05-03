@@ -31,7 +31,11 @@ def train_net(args):
                                             persistent_workers=True,
                                             seed=set_seed(args.seed))
     else:
-        train_dataset = GeneratorDataset(train_dataset_generator, ["data", "target"], num_parallel_workers=args.workers)
+        train_dataset = GeneratorDataset(train_dataset_generator, ['data_feature', 'data_feamap', 'data_transits', 'data_number', 'data_final_score', 
+                                                                'data_difficulty', 'data_completeness', 'data_boxes', 'data_cnn_features', 
+                                                                'target_feature', 'target_feamap', 'target_transits', 'target_number', 'target_final_score', 
+                                                                'target_difficulty', 'target_completeness', 'target_boxes','target_cnn_features'], 
+                                                                    shuffle=False, num_parallel_workers=args.workers)
         train_dataset = train_dataset.batch(batch_size=args.bs_train)
         train_dataloader = train_dataset.create_tuple_iterator()
         '''train_dataloader = torch.utils.data.DataLoader(train_dataset,
@@ -40,7 +44,11 @@ def train_net(args):
                                                        num_workers=int(args.workers),
                                                        pin_memory=True)'''
 
-    test_dataset = GeneratorDataset(test_dataset_generator, ["data", "target"], shuffle=False, num_parallel_workers=args.workers)
+    test_dataset = GeneratorDataset(test_dataset_generator, ['data_feature', 'data_feamap', 'data_transits', 'data_number', 'data_final_score', 
+                                                               'data_difficulty', 'data_completeness', 'data_boxes', 'data_cnn_features', 
+                                                               'target_feature', 'target_feamap', 'target_transits', 'target_number', 'target_final_score', 
+                                                               'target_difficulty', 'target_completeness', 'target_boxes','target_cnn_features'], 
+                                                                shuffle=False, num_parallel_workers=args.workers)
     test_dataset = test_dataset.batch(batch_size=args.bs_test)
     test_dataloader = test_dataset.create_tuple_iterator()
     '''test_dataloader = torch.utils.data.DataLoader(test_dataset,
@@ -181,25 +189,33 @@ def train_net(args):
 
         # if args.fix_bn:
         #     base_model.apply(misc.fix_bn)
-        for idx, (data, target) in enumerate(train_dataloader):
+        for idx, data_get in enumerate(train_dataset.create_dict_iterator()):
             # num_iter += 1
             opti_flag = True
 
+            data = {}
+            target = {}
+
             # video_1 is query and video_2 is exemplar
-            feature_1 = data['feature'].float()
-            feature_2 = target['feature'].float()
-            feamap_1 = data['feamap'].float()
-            feamap_2 = target['feamap'].float()
-            label_1_tas = data['transits'].float() + 1
-            label_2_tas = target['transits'].float() + 1
-            label_1_score = data['final_score'].float().reshape(-1, 1)
-            label_2_score = target['final_score'].float().reshape(-1, 1)
+            feature_1 = data_get['data_feature'].float()
+            feature_2 = data_get['target_feature'].float()
+            feamap_1 = data_get['data_feamap'].float()
+            feamap_2 = data_get['target_feamap'].float()
+            label_1_tas = data_get['data_transits'].float() + 1
+            label_2_tas = data_get['target_transits'].float() + 1
+            label_1_score = data_get['data_final_score'].float().reshape(-1, 1)
+            label_2_score = data_get['target_final_score'].float().reshape(-1, 1)
+
+            data['boxes'] = data_get['data_boxes'].float()
+            data['cnn_features'] = data_get['data_cnn_features'].float()
+            target['boxes'] = data_get['target_boxes'].float()
+            target['cnn_features'] = data_get['target_cnn_features'].float()
 
             # forward
 
             helper.network_forward_train(base_model, psnet_model, decoder, regressor_delta, pred_scores,
                                          feature_1, label_1_score, feature_2, label_2_score, mse, optimizer,
-                                         opti_flag, epoch, idx + 1, len(train_dataloader),
+                                         opti_flag, epoch, idx + 1, train_dataset.get_dataset_size(),
                                          args, label_1_tas, label_2_tas, bce,
                                          pred_tious_5, pred_tious_75, feamap_1, feamap_2, data, target, gcn,
                                          attn_encoder, device, linear_bp)
@@ -233,9 +249,9 @@ def train_net(args):
         print('[Training] EPOCH: %d, tIoU_5: %.4f, tIoU_75: %.4f'
                 % (epoch, pred_tious_mean_5, pred_tious_mean_75))
         print('[Training] EPOCH: %d, correlation: %.4f, L2: %.4f, RL2: %.4f, lr1: %.4f' % (epoch, rho, L2, RL2,
-                                                                                            optimizer.get_lr_parameter(psnet_model.trainable_params())))
+                                                                                            optimizer.get_lr()[0]))
         validate(base_model, psnet_model, decoder, regressor_delta, test_dataloader, epoch, optimizer, args, gcn,
-                attn_encoder, device, linear_bp)
+                attn_encoder, device, linear_bp, test_dataset)
 
         print('[TEST] EPOCH: %d, best correlation: %.6f, best L2: %.6f, best RL2: %.6f' % (epoch_best_aqa,
                                                                                             rho_best, L2_min, RL2_min))
@@ -248,7 +264,7 @@ def train_net(args):
 
 
 def validate(base_model, psnet_model, decoder, regressor_delta, test_dataloader, epoch, optimizer, args, gcn,
-             attn_encoder, device, linear_bp):
+             attn_encoder, device, linear_bp, test_dataset):
     print("Start validating epoch {}".format(epoch))
     global use_gpu
     global epoch_best_aqa, rho_best, L2_min, RL2_min, epoch_best_tas, pred_tious_best_5, pred_tious_best_75
@@ -267,14 +283,27 @@ def validate(base_model, psnet_model, decoder, regressor_delta, test_dataloader,
         gcn.set_train(False)
         attn_encoder.set_train(False)
 
-    batch_num = len(test_dataloader)
+    batch_num = test_dataset.get_dataset_size()
     #with torch.no_grad():
     datatime_start = time.time()
 
-    for batch_idx, (data, target) in enumerate(test_dataloader, 0):
+    for batch_idx, data_get in enumerate(test_dataset.create_dict_iterator(), 0):
         datatime = time.time() - datatime_start
         start = time.time()
-
+        data = {}
+        data['feature'] = data_get['data_feature']
+        data['feamap'] = data_get['data_feamap']
+        data['transits'] = data_get['data_transits']
+        data['number'] = data_get['data_number']
+        data['final_score'] = data_get['data_final_score']
+        data['difficulty'] = data_get['data_difficulty']
+        data['completeness'] = data_get['data_completeness']
+        data['boxes'] = data_get['data_boxes'].float()
+        data['cnn_features'] = data_get['data_cnn_features'].float()
+        target_len = data_get['target_final_score'].shape[1]
+        target = [{'feature': data_get['target_feature'][:, i, :, :], 'feamap': data_get['target_feamap'][:, i, :, :], 'transits': data_get['target_transits'][:, i], 
+                   'number': data_get['target_number'][:, i], 'final_score': data_get['target_final_score'][:, i], 'difficulty': data_get['target_difficulty'][:, i], 'completeness': data_get['target_completeness'][:, i],
+                   'boxes': data_get['target_boxes'][:, i, :, :].float(), 'cnn_features': data_get['target_cnn_features'][:, i, :, :].float()} for i in range(target_len)]
         # video_1 = data['video'].float()
         feature_1 = data['feature'].float()
         feamap_1 = data['feamap'].float()
@@ -298,38 +327,38 @@ def validate(base_model, psnet_model, decoder, regressor_delta, test_dataloader,
         datatime_start = time.time()
         true_scores.extend(data['final_score'].asnumpy())
 
-        # evaluation results
-        pred_scores = np.array(pred_scores)
-        true_scores = np.array(true_scores)
-        rho, p = stats.spearmanr(pred_scores, true_scores)
-        L2 = np.power(pred_scores - true_scores, 2).sum() / true_scores.shape[0]
-        RL2 = np.power((pred_scores - true_scores) / (true_scores.max() - true_scores.min()), 2).sum() / \
-              true_scores.shape[0]
-        pred_tious_test_mean_5 = sum(pred_tious_test_5) / (len(test_dataloader) * args.bs_test)
-        pred_tious_test_mean_75 = sum(pred_tious_test_75) / (len(test_dataloader) * args.bs_test)
+    # evaluation results
+    pred_scores = np.array(pred_scores)
+    true_scores = np.array(true_scores)
+    rho, p = stats.spearmanr(pred_scores, true_scores)
+    L2 = np.power(pred_scores - true_scores, 2).sum() / true_scores.shape[0]
+    RL2 = np.power((pred_scores - true_scores) / (true_scores.max() - true_scores.min()), 2).sum() / \
+            true_scores.shape[0]
+    pred_tious_test_mean_5 = sum(pred_tious_test_5) / (len(test_dataloader) * args.bs_test)
+    pred_tious_test_mean_75 = sum(pred_tious_test_75) / (len(test_dataloader) * args.bs_test)
 
-        if pred_tious_test_mean_5 > pred_tious_best_5:
-            pred_tious_best_5 = pred_tious_test_mean_5
-        if pred_tious_test_mean_75 > pred_tious_best_75:
-            pred_tious_best_75 = pred_tious_test_mean_75
-            epoch_best_tas = epoch
-        print('[TEST] EPOCH: %d, tIoU_5: %.6f, tIoU_75: %.6f' % (epoch, pred_tious_best_5, pred_tious_best_75))
+    if pred_tious_test_mean_5 > pred_tious_best_5:
+        pred_tious_best_5 = pred_tious_test_mean_5
+    if pred_tious_test_mean_75 > pred_tious_best_75:
+        pred_tious_best_75 = pred_tious_test_mean_75
+        epoch_best_tas = epoch
+    print('[TEST] EPOCH: %d, tIoU_5: %.6f, tIoU_75: %.6f' % (epoch, pred_tious_best_5, pred_tious_best_75))
 
-        if L2_min > L2:
-            L2_min = L2
-        if RL2_min > RL2:
-            RL2_min = RL2
-        if rho > rho_best:
-            rho_best = rho
-            epoch_best_aqa = epoch
-            print('-----New best found!-----')
-            # helper.save_outputs(pred_scores, true_scores, args)
-            # helper.save_checkpoint(base_model, psnet_model, decoder, regressor_delta, optimizer, epoch, epoch_best_aqa,
-            #                        rho_best, L2_min, RL2_min, 'last', args)
-        if epoch == args.max_epoch - 1:
-            log_best(rho_best, RL2_min, epoch_best_aqa, args)
+    if L2_min > L2:
+        L2_min = L2
+    if RL2_min > RL2:
+        RL2_min = RL2
+    if rho > rho_best:
+        rho_best = rho
+        epoch_best_aqa = epoch
+        print('-----New best found!-----')
+        # helper.save_outputs(pred_scores, true_scores, args)
+        # helper.save_checkpoint(base_model, psnet_model, decoder, regressor_delta, optimizer, epoch, epoch_best_aqa,
+        #                        rho_best, L2_min, RL2_min, 'last', args)
+    if epoch == args.max_epoch - 1:
+        log_best(rho_best, RL2_min, epoch_best_aqa, args)
 
-        print('[TEST] EPOCH: %d, correlation: %.6f, L2: %.6f, RL2: %.6f' % (epoch, rho, L2, RL2))
+    print('[TEST] EPOCH: %d, correlation: %.6f, L2: %.6f, RL2: %.6f' % (epoch, rho, L2, RL2))
 
 
 def test_net(args):
